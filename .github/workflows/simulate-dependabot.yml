@@ -1,0 +1,143 @@
+# Workflow to simulate Dependabot via manual trigger or API call
+#
+# This allows triggering the demo via:
+# 1. GitHub Actions UI (manual workflow_dispatch)
+# 2. curl API call
+# 3. gh workflow run command
+#
+# Usage:
+#   gh workflow run simulate-dependabot.yml
+#   OR
+#   curl -X POST -H "Authorization: token $GITHUB_TOKEN" \
+#     https://api.github.com/repos/OWNER/REPO/actions/workflows/simulate-dependabot.yml/dispatches \
+#     -d '{"ref":"main"}'
+
+name: Simulate Dependabot Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to update'
+        required: true
+        default: 'pydantic'
+        type: choice
+        options:
+          - pydantic
+          - fastapi
+          - sqlalchemy
+      target_version:
+        description: 'Target version (leave empty for latest)'
+        required: false
+        default: ''
+
+jobs:
+  simulate-update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Determine versions
+        id: versions
+        run: |
+          PACKAGE="${{ inputs.package }}"
+
+          # Get current version from pyproject.toml
+          CURRENT=$(grep "${PACKAGE}==" pyproject.toml | head -1 | sed "s/.*${PACKAGE}==\([^\"]*\).*/\1/")
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+
+          # Determine target version
+          if [[ -n "${{ inputs.target_version }}" ]]; then
+            TARGET="${{ inputs.target_version }}"
+          else
+            # Get latest version from PyPI
+            TARGET=$(pip index versions "$PACKAGE" 2>/dev/null | head -1 | sed 's/.*(\([^)]*\)).*/\1/' | cut -d',' -f1)
+          fi
+          echo "target=$TARGET" >> $GITHUB_OUTPUT
+
+          echo "Package: $PACKAGE"
+          echo "Current: $CURRENT"
+          echo "Target: $TARGET"
+
+      - name: Create update branch
+        id: branch
+        run: |
+          BRANCH_NAME="dependabot/pip/${{ inputs.package }}-${{ steps.versions.outputs.target }}"
+          echo "name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Check if branch already exists
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Branch $BRANCH_NAME already exists, deleting..."
+            git push origin --delete "$BRANCH_NAME" || true
+          fi
+
+          git checkout -b "$BRANCH_NAME"
+
+      - name: Update dependency
+        run: |
+          PACKAGE="${{ inputs.package }}"
+          CURRENT="${{ steps.versions.outputs.current }}"
+          TARGET="${{ steps.versions.outputs.target }}"
+
+          # Update pyproject.toml
+          sed -i "s/${PACKAGE}==${CURRENT}/${PACKAGE}==${TARGET}/" pyproject.toml
+
+          echo "Updated pyproject.toml:"
+          grep "$PACKAGE" pyproject.toml
+
+      - name: Commit and push
+        run: |
+          git add pyproject.toml
+          git commit -m "deps: bump ${{ inputs.package }} from ${{ steps.versions.outputs.current }} to ${{ steps.versions.outputs.target }}
+
+          Bumps ${{ inputs.package }} from ${{ steps.versions.outputs.current }} to ${{ steps.versions.outputs.target }}.
+
+          Simulated Dependabot update triggered via workflow_dispatch."
+
+          git push -u origin "${{ steps.branch.outputs.name }}"
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PACKAGE="${{ inputs.package }}"
+          CURRENT="${{ steps.versions.outputs.current }}"
+          TARGET="${{ steps.versions.outputs.target }}"
+
+          gh pr create \
+            --title "Bump $PACKAGE from $CURRENT to $TARGET" \
+            --body "## Dependency Update
+
+          Bumps **$PACKAGE** from \`$CURRENT\` to \`$TARGET\`.
+
+          ### What happens next
+
+          1. ✅ CI will run tests
+          2. 🤖 If tests fail, OpenHands will automatically attempt to fix the code
+          3. 📝 OpenHands will push fixes and comment on this PR
+
+          ---
+          *Simulated Dependabot update for demo purposes*" \
+            --label "dependencies" \
+            --label "automated" \
+            --base main
+
+      - name: Output PR URL
+        run: |
+          echo "✅ Pull Request created!"
+          echo ""
+          echo "The OpenHands workflow should trigger automatically."
+          echo "Watch the Actions tab for progress."

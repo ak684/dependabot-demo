@@ -1,0 +1,20 @@
+# Dependabot configuration for automated dependency updates
+# This will create PRs when dependencies are outdated or have CVEs
+
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "deps"
+    groups:
+      # Group all Python dependencies together for easier demo
+      python-deps:
+        patterns:
+          - "*"

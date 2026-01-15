@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taskflow-api"
+version = "1.0.0"
+description = "Enterprise Task Management API - Demo Application"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "OpenHands Demo Team", email = "demo@all-hands.dev"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+# INTENTIONALLY PINNED TO OLD VERSIONS FOR DEPENDABOT DEMO
+# These versions have known CVEs or are significantly outdated
+dependencies = [
+    "fastapi==0.95.0",           # Old version (current is 0.115+)
+    "uvicorn==0.21.0",           # Old version
+    "pydantic==1.10.7",          # v1 - WILL BREAK when updated to v2
+    "sqlalchemy==1.4.46",        # 1.x - breaking changes in 2.x
+    "httpx==0.23.0",             # Old version with CVEs
+    "python-jose==3.3.0",        # JWT library, old version
+    "passlib==1.7.4",            # Password hashing
+    "python-multipart==0.0.5",   # Old version
+    "aiosqlite==0.17.0",         # For async SQLite
+    "requests==2.28.0",          # Known CVEs in older versions
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==7.2.0",
+    "pytest-asyncio==0.20.0",
+    "pytest-cov==4.0.0",
+    "httpx==0.23.0",
+    "black==23.1.0",
+    "ruff==0.0.254",
+    "mypy==1.0.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/All-Hands-AI/dependabot-demo"
+"Bug Tracker" = "https://github.com/All-Hands-AI/dependabot-demo/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
+
+[tool.black]
+line-length = 88
+target-version = ["py39", "py310", "py311"]
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "I", "N"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
